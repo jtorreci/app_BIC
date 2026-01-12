@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bienes de Interés Cultural{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .badge-entregado { background-color: #198754; }
+        .badge-no-entregado { background-color: #6c757d; }
+        .badge-con-datos { background-color: #0d6efd; }
+        .badge-sin-datos { background-color: #dc3545; }
+        .btn-toggle { width: 80px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-building"></i> Bienes de Interés Cultural
+            </a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/" data-bs-toggle="modal" data-bs-target="#estadisticasModal">
+                    <i class="bi bi-graph-up"></i> Estadísticas
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div class="modal fade" id="estadisticasModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Estadísticas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="card-title" id="statTotal">-</h3>
+                                    <p class="card-text">Total</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="card-title text-success" id="statEntregados">-</h3>
+                                    <p class="card-text">Entregados</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="card-title text-primary" id="statDatos">-</h3>
+                                    <p class="card-text">Con Datos</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Por Provincia</h6>
+                            <ul class="list-group" id="listaProvincias"></ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Por Categoría</h6>
+                            <ul class="list-group" id="listaCategorias"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('estadisticasModal')?.addEventListener('shown.bs.modal', cargarEstadisticas);
+
+        async function cargarEstadisticas() {
+            const response = await fetch('/api/estadisticas');
+            const data = await response.json();
+            
+            document.getElementById('statTotal').textContent = data.total;
+            document.getElementById('statEntregados').textContent = data.entregados;
+            document.getElementById('statDatos').textContent = data.con_datos;
+            
+            const listaProvincias = document.getElementById('listaProvincias');
+            listaProvincias.innerHTML = data.por_provincia.map(p => 
+                `<li class="list-group-item d-flex justify-content-between">
+                    <span>${p.provincia}</span>
+                    <span class="badge bg-primary">${p.count}</span>
+                </li>`
+            ).join('');
+            
+            const listaCategorias = document.getElementById('listaCategorias');
+            listaCategorias.innerHTML = data.por_categoria.map(c => 
+                `<li class="list-group-item d-flex justify-content-between">
+                    <span>${c.categoria}</span>
+                    <span class="badge bg-primary">${c.count}</span>
+                </li>`
+            ).join('');
+        }
+    </script>
+</body>
+</html>

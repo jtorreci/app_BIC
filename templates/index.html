@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Bienes de Interés Cultural - Listado{% endblock %}
+
+{% block head %}
+<style>
+    .btn-toggle-entregado { width: 60px; }
+    .btn-toggle-datos { width: 60px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <input type="hidden" name="vista" value="{{ vista }}">
+            <div class="col-md-5">
+                <label class="form-label">Buscar</label>
+                <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Bien, municipio o provincia...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Vista</label>
+                <div class="btn-group w-100" role="group">
+                    <a href="{{ url_for('index', vista='tarjetas', search=search, entregado=filter_entregado, datos=filter_datos) }}" 
+                       class="btn {{ 'btn-primary' if vista == 'tarjetas' else 'btn-outline-primary' }}">
+                        <i class="bi bi-grid"></i> Tarjetas
+                    </a>
+                    <a href="{{ url_for('index', vista='lista', search=search, entregado=filter_entregado, datos=filter_datos) }}" 
+                       class="btn {{ 'btn-primary' if vista == 'lista' else 'btn-outline-primary' }}">
+                        <i class="bi bi-list"></i> Lista
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Entregado</label>
+                <select class="form-select" name="entregado">
+                    <option value="">Todos</option>
+                    <option value="1" {% if filter_entregado == '1' %}selected{% endif %}>Sí</option>
+                    <option value="0" {% if filter_entregado == '0' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Datos</label>
+                <select class="form-select" name="datos">
+                    <option value="">Todos</option>
+                    <option value="1" {% if filter_datos == '1' %}selected{% endif %}>Sí</option>
+                    <option value="0" {% if filter_datos == '0' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Mostrando <strong>{{ bienes|length }}</strong> de <strong>{{ total }}</strong> registros ({{ per_page }} por página)
+</div>
+
+{% if vista == 'lista' %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Municipio</th>
+                        <th>Provincia</th>
+                        <th>Categoría</th>
+                        <th>Entregado</th>
+                        <th>Datos</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bien in bienes %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('detalle', id=bien.id) }}" class="text-decoration-none fw-bold">
+                                {{ bien.bien if bien.bien else 'Sin nombre' }}
+                            </a>
+                            {% if bien.codigo_bic %}
+                            <br><small class="text-muted">{{ bien.codigo_bic }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ bien.municipio if bien.municipio else '-' }}</td>
+                        <td>{{ bien.provincia if bien.provincia else '-' }}</td>
+                        <td>{{ bien.categoria if bien.categoria else '-' }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-entregado' if bien.entregado else 'badge-no-entregado' }}">
+                                {{ 'Sí' if bien.entregado else 'No' }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {{ 'badge-con-datos' if bien.tiene_datos else 'badge-sin-datos' }}">
+                                {{ 'Sí' if bien.tiene_datos else 'No' }}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-success" title="Cambiar Entregado" onclick="toggleEntregado({{ bien.id }})">
+                                <i class="bi bi-check-circle"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" title="Cambiar Datos" onclick="toggleDatos({{ bien.id }})">
+                                <i class="bi bi-database"></i>
+                            </button>
+                            <a href="{{ url_for('detalle', id=bien.id) }}" class="btn btn-sm btn-outline-primary" title="Ver detalle">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    {% for bien in bienes %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <a href="{{ url_for('detalle', id=bien.id) }}" class="text-decoration-none">
+                        {{ bien.bien if bien.bien else 'Sin nombre' }}
+                    </a>
+                </h5>
+                <p class="card-text mb-2">
+                    <i class="bi bi-geo-alt"></i> {{ bien.municipio }}, {{ bien.provincia }}
+                </p>
+                <p class="card-text mb-2">
+                    <i class="bi bi-tag"></i> {{ bien.categoria }}
+                </p>
+                {% if bien.direccion_lugar %}
+                <p class="card-text text-muted small">
+                    <i class="bi bi-geo"></i> {{ bien.direccion_lugar }}
+                </p>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge {{ 'badge-entregado' if bien.entregado else 'badge-no-entregado' }}">
+                        <i class="bi {{ 'bi-check-circle' if bien.entregado else 'bi-x-circle' }}"></i> 
+                        Entregado
+                    </span>
+                    <button class="btn btn-sm btn-{{ 'success' if bien.entregado else 'secondary' }}" 
+                            onclick="toggleEntregado({{ bien.id }})">
+                        <i class="bi {{ 'bi-check' if bien.entregado else 'bi-x' }}"></i>
+                    </button>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge {{ 'badge-con-datos' if bien.tiene_datos else 'badge-sin-datos' }}">
+                        <i class="bi {{ 'bi-check-circle' if bien.tiene_datos else 'bi-x-circle' }}"></i> 
+                        Datos
+                    </span>
+                    <button class="btn btn-sm btn-{{ 'primary' if bien.tiene_datos else 'danger' }}" 
+                            onclick="toggleDatos({{ bien.id }})">
+                        <i class="bi {{ 'bi-check' if bien.tiene_datos else 'bi-x' }}"></i>
+                    </button>
+                </div>
+                <a href="{{ url_for('detalle', id=bien.id) }}" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-eye"></i> Ver detalle
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if total_pages > 1 %}
+<nav aria-label="Paginación">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('index', page=page-1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page or p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+                <li class="page-item {{ 'active' if p == page else '' }}">
+                    <a class="page-link" href="{{ url_for('index', page=p, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+                        {{ p }}
+                    </a>
+                </li>
+            {% elif p == page - 2 or p == page + 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('index', page=page+1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<script>
+    async function toggleEntregado(id) {
+        const response = await fetch(`/api/toggle_entregado/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        }
+    }
+    
+    async function toggleDatos(id) {
+        const response = await fetch(`/api/toggle_datos/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        }
+    }
+</script>
+{% endblock %}

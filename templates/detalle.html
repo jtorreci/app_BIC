@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bien.bien }} - BIC{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item active">{{ bien.bien }}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title mb-4">{{ bien.bien if bien.bien else 'Sin nombre' }}</h2>
+                
+                <div class="table-responsive">
+                    <table class="table table-borderless">
+                        <tr>
+                            <td class="fw-bold" style="width: 30%">Municipio:</td>
+                            <td>{{ bien.municipio if bien.municipio else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Provincia:</td>
+                            <td>{{ bien.provincia if bien.provincia else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Categoría:</td>
+                            <td>{{ bien.categoria if bien.categoria else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Dirección/Lugar:</td>
+                            <td>{{ bien.direccion_lugar if bien.direccion_lugar else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Coordenadas:</td>
+                            <td>
+                                {% if bien.x or bien.y %}
+                                    X: {{ bien.x }}, Y: {{ bien.y }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Código BIC:</td>
+                            <td>
+                                {% if bien.codigo_bic %}
+                                    <code>{{ bien.codigo_bic }}</code>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">ID REGAGE:</td>
+                            <td>{{ bien.id_regage if bien.id_regage else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Fecha Declaración:</td>
+                            <td>{{ bien.fecha_declaracion if bien.fecha_declaracion else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Fecha Diario:</td>
+                            <td>{{ bien.fecha_diario if bien.fecha_diario else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">Fecha Boletín:</td>
+                            <td>{{ bien.fecha_boletin if bien.fecha_boletin else '-' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Estado</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Entregado</label>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="badge {{ 'badge-entregado' if bien.entregado else 'badge-no-entregado' }} fs-6">
+                            {{ 'Sí' if bien.entregado else 'No' }}
+                        </span>
+                        <button class="btn btn-lg btn-{{ 'success' if bien.entregado else 'secondary' }} ms-3" 
+                                onclick="toggleEntregado({{ bien.id }})">
+                            <i class="bi {{ 'bi-check' if bien.entregado else 'bi-x' }}"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="form-label fw-bold">Datos</label>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="badge {{ 'badge-con-datos' if bien.tiene_datos else 'badge-sin-datos' }} fs-6">
+                            {{ 'Sí' if bien.tiene_datos else 'No' }}
+                        </span>
+                        <button class="btn btn-lg btn-{{ 'primary' if bien.tiene_datos else 'danger' }} ms-3" 
+                                onclick="toggleDatos({{ bien.id }})">
+                            <i class="bi {{ 'bi-check' if bien.tiene_datos else 'bi-x' }}"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if bien.x and bien.y %}
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">Ubicación</h6>
+                <a href="https://www.google.com/maps/search/?api=1&query={{ bien.y }},{{ bien.x }}" 
+                   target="_blank" 
+                   class="btn btn-outline-primary w-100">
+                    <i class="bi bi-map"></i> Ver en Google Maps
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<a href="/" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Volver al listado
+</a>
+
+<script>
+    async function toggleEntregado(id) {
+        const response = await fetch(`/api/toggle_entregado/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        }
+    }
+    
+    async function toggleDatos(id) {
+        const response = await fetch(`/api/toggle_datos/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        }
+    }
+</script>
+{% endblock %}
