@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa de Bienes de Interés Cultural{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item active">Mapa</li>
+    </ol>
+</nav>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-geo-alt"></i>
+                <span id="contador">Cargando...</span>
+            </div>
+            <a href="{{ url_for('index', search=search, entregado=filter_entregado, datos=filter_datos) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Volver al listado
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div id="mapa" style="height: 70vh; width: 100%;"></div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+<script>
+    const map = L.map('mapa').setView([39.5, -6.0], 8);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const markers = L.markerClusterGroup();
+
+    async function cargarMarcadores() {
+        const params = new URLSearchParams({
+            search: '{{ search }}',
+            entregado: '{{ filter_entregado }}',
+            datos: '{{ filter_datos }}'
+        });
+
+        const response = await fetch(`/api/coordenadas?${params}`);
+        const bienes = await response.json();
+
+        document.getElementById('contador').textContent =
+            `${bienes.length} BICs con coordenadas`;
+
+        if (bienes.length === 0) {
+            document.getElementById('contador').textContent = 'No hay BICs con coordenadas para los filtros seleccionados';
+            return;
+        }
+
+        const bounds = [];
+
+        bienes.forEach(bien => {
+            const marker = L.marker([bien.lat, bien.lon]);
+            marker.bindPopup(`
+                <strong>${bien.bien || 'Sin nombre'}</strong><br>
+                ${bien.municipio}, ${bien.provincia}<br>
+                <a href="/detalle/${bien.id}" class="btn btn-sm btn-primary mt-2">Ver detalle</a>
+            `);
+            markers.addLayer(marker);
+            bounds.push([bien.lat, bien.lon]);
+        });
+
+        map.addLayer(markers);
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [20, 20] });
+        }
+    }
+
+    cargarMarcadores();
+</script>
+{% endblock %}

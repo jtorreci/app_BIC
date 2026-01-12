@@ -56,8 +56,13 @@
     </div>
 </div>
 
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Mostrando <strong>{{ bienes|length }}</strong> de <strong>{{ total }}</strong> registros ({{ per_page }} por página)
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+    <span>
+        <i class="bi bi-info-circle"></i> Mostrando <strong>{{ bienes|length }}</strong> de <strong>{{ total }}</strong> registros ({{ per_page }} por página)
+    </span>
+    <a href="{{ url_for('mapa', search=search, entregado=filter_entregado, datos=filter_datos) }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-map"></i> Ver todos en mapa
+    </a>
 </div>
 
 {% if vista == 'lista' %}

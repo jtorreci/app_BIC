@@ -94,6 +94,61 @@ def toggle_datos(id):
     return jsonify({"success": True, "tiene_datos": nuevo_valor})
 
 
+@app.route("/mapa")
+def mapa():
+    search = request.args.get("search", "")
+    filter_entregado = request.args.get("entregado", "")
+    filter_datos = request.args.get("datos", "")
+
+    return render_template(
+        "mapa.html",
+        search=search,
+        filter_entregado=filter_entregado,
+        filter_datos=filter_datos,
+    )
+
+
+@app.route("/api/coordenadas")
+def api_coordenadas():
+    search = request.args.get("search", "")
+    filter_entregado = request.args.get("entregado", "")
+    filter_datos = request.args.get("datos", "")
+
+    conn = get_db_connection()
+
+    query = "SELECT id, bien, municipio, provincia, lat, lon FROM bienes WHERE lat IS NOT NULL AND lon IS NOT NULL"
+    params = []
+
+    if search:
+        query += " AND (bien LIKE ? OR municipio LIKE ? OR provincia LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+
+    if filter_entregado == "1":
+        query += " AND entregado = 1"
+    elif filter_entregado == "0":
+        query += " AND entregado = 0"
+
+    if filter_datos == "1":
+        query += " AND tiene_datos = 1"
+    elif filter_datos == "0":
+        query += " AND tiene_datos = 0"
+
+    bienes = conn.execute(query, params).fetchall()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": b["id"],
+            "bien": b["bien"],
+            "municipio": b["municipio"],
+            "provincia": b["provincia"],
+            "lat": b["lat"],
+            "lon": b["lon"],
+        }
+        for b in bienes
+    ])
+
+
 @app.route("/api/estadisticas")
 def estadisticas():
     conn = get_db_connection()
