@@ -52,6 +52,15 @@ Abrir el navegador en: http://localhost:5000
 
 ## Despliegue para colaboradores
 
+### Opción rápida: Render.com (Recomendado)
+
+1. Crear cuenta en https://render.com
+2. Clic en "New" → "Web Service"
+3. Conectar a GitHub: seleccionar el repositorio `jtorreci/app_BIC`
+4. Render detectará automáticamente la configuración del archivo `render.yaml`
+5. Clic en "Create Web Service"
+6. Esperar unos minutos y listo
+
 Ver `DESPLIEGUE.md` para instrucciones detalladas de despliegue en:
 - VPS propio (DigitalOcean, Linode, Hetzner)
 - Render.com (gratuito/bara
