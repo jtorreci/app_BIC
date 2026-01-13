@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Bitacora del Proyecto - BIC{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item active">Bitacora</li>
+    </ol>
+</nav>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtrar periodo</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Periodo rapido</label>
+                        <select class="form-select" name="periodo" onchange="this.form.submit()">
+                            <option value="semana" {% if periodo == 'semana' %}selected{% endif %}>Esta semana</option>
+                            <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Este mes</option>
+                            <option value="todo" {% if periodo == 'todo' %}selected{% endif %}>Todo el año</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Desde</label>
+                        <input type="date" class="form-control" name="desde" value="{{ fecha_desde }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Hasta</label>
+                        <input type="date" class="form-control" name="hasta" value="{{ fecha_hasta }}">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="sustituidos" value="1"
+                                   id="mostrarSustituidos" {% if mostrar_sustituidos == '1' %}checked{% endif %}
+                                   onchange="this.form.submit()">
+                            <label class="form-check-label" for="mostrarSustituidos">
+                                Mostrar tambien documentos sustituidos (versiones antiguas)
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ total_docs }}</h3>
+                <p class="text-muted mb-2">documentos en el periodo</p>
+                <small class="text-success"><i class="bi bi-check-circle"></i> {{ total_activos }} activos</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if docs_por_fecha %}
+<div class="timeline">
+    {% for fecha, docs in docs_por_fecha.items() %}
+    <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+            <h6 class="mb-0">
+                <i class="bi bi-calendar3"></i>
+                {{ fecha }}
+                <span class="badge bg-light text-primary ms-2">{{ docs|length }} doc{{ 's' if docs|length > 1 else '' }}</span>
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <ul class="list-group list-group-flush">
+                {% for doc in docs %}
+                <li class="list-group-item {{ 'bg-light text-muted' if doc.sustituido_por else '' }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge bg-info me-2">{{ doc.tipo }}</span>
+                            <strong>{{ doc.titulo }}</strong>
+                            {% if doc.sustituido_por %}
+                            <span class="badge bg-secondary ms-1">sustituido</span>
+                            {% endif %}
+                            <br>
+                            <small class="text-muted">
+                                <i class="bi bi-geo-alt"></i> {{ doc.bien }} - {{ doc.municipio }}
+                                {% if doc.autor %} | <i class="bi bi-person"></i> {{ doc.autor }}{% endif %}
+                            </small>
+                            {% if doc.comentario %}
+                            <br><small class="text-secondary">{{ doc.comentario }}</small>
+                            {% endif %}
+                            {% if doc.sustituido_por_titulo %}
+                            <br><small class="text-warning"><i class="bi bi-arrow-right"></i> Sustituido por: {{ doc.sustituido_por_titulo }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="text-end">
+                            <a href="{{ doc.enlace }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            <a href="/detalle/{{ doc.bien_id }}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info text-center">
+    <i class="bi bi-inbox"></i> No hay documentos en el periodo seleccionado
+</div>
+{% endif %}
+
+<style>
+    .timeline .card-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+</style>
+{% endblock %}

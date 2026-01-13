@@ -90,27 +90,44 @@
                 {% if documentos %}
                 <div class="list-group list-group-flush">
                     {% for doc in documentos %}
-                    <div class="list-group-item px-0">
+                    <div class="list-group-item px-0 {{ 'opacity-50' if doc.sustituido_por else '' }}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center mb-1">
                                     <span class="badge bg-info me-2">{{ doc.tipo }}</span>
                                     <strong>{{ doc.titulo }}</strong>
+                                    {% if doc.sustituido_por %}
+                                    <span class="badge bg-secondary ms-2" title="Sustituido por: {{ doc.sustituido_por_titulo }}">
+                                        <i class="bi bi-arrow-right"></i> v. antigua
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success ms-2">Actual</span>
+                                    {% endif %}
                                 </div>
                                 {% if doc.comentario %}
                                 <p class="text-muted small mb-1">{{ doc.comentario }}</p>
                                 {% endif %}
-                                <div class="d-flex align-items-center">
-                                    <a href="{{ doc.enlace }}" target="_blank" class="btn btn-outline-primary btn-sm me-2">
+                                {% if doc.sustituido_por %}
+                                <p class="text-warning small mb-1">
+                                    <i class="bi bi-arrow-right-circle"></i> Sustituido por: <strong>{{ doc.sustituido_por_titulo }}</strong>
+                                </p>
+                                {% endif %}
+                                <div class="d-flex align-items-center flex-wrap gap-1">
+                                    <a href="{{ doc.enlace }}" target="_blank" class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-box-arrow-up-right"></i> Abrir
                                     </a>
-                                    <small class="text-muted">
-                                        {% if doc.autor %}por {{ doc.autor }} - {% endif %}
-                                        {{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }}
+                                    {% if not doc.sustituido_por %}
+                                    <button class="btn btn-outline-warning btn-sm" onclick="mostrarModalSustituir({{ doc.id }}, '{{ doc.titulo }}')" title="Marcar como sustituido">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                    </button>
+                                    {% endif %}
+                                    <small class="text-muted ms-2">
+                                        <i class="bi bi-calendar"></i> {{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }}
+                                        {% if doc.autor %} - {{ doc.autor }}{% endif %}
                                     </small>
                                 </div>
                             </div>
-                            <button class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarDocumento({{ doc.id }})">
+                            <button class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarDocumento({{ doc.id }})" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -275,8 +292,44 @@
     </div>
 </div>
 
+<!-- Modal para marcar como sustituido -->
+<div class="modal fade" id="modalSustituir" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat"></i> Marcar como sustituido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>El documento <strong id="sustituir-titulo-doc"></strong> sera marcado como version antigua.</p>
+                <div class="mb-3">
+                    <label class="form-label">Selecciona el documento que lo sustituye:</label>
+                    <select class="form-select" id="sustituir-nuevo-doc">
+                        <option value="">-- Seleccionar --</option>
+                        {% for doc in documentos %}
+                        {% if not doc.sustituido_por %}
+                        <option value="{{ doc.id }}">{{ doc.titulo }} ({{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }})</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle"></i> Si el documento sustituto aun no existe, primero crealo con el boton "Nuevo" y luego vuelve a esta opcion.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="confirmarSustitucion()">
+                    <i class="bi bi-check"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const BIEN_ID = {{ bien.id }};
+    let docIdASustituir = null;
 
     async function toggleEntregado(id) {
         const response = await fetch(`/api/toggle_entregado/${id}`, { method: 'POST' });
@@ -342,6 +395,44 @@
             }
         } catch (error) {
             alert('Error al eliminar');
+        }
+    }
+
+    function mostrarModalSustituir(docId, titulo) {
+        docIdASustituir = docId;
+        document.getElementById('sustituir-titulo-doc').textContent = titulo;
+        // Ocultar el propio documento de la lista de opciones
+        const select = document.getElementById('sustituir-nuevo-doc');
+        for (let option of select.options) {
+            option.style.display = option.value == docId ? 'none' : '';
+        }
+        select.value = '';
+        const modal = new bootstrap.Modal(document.getElementById('modalSustituir'));
+        modal.show();
+    }
+
+    async function confirmarSustitucion() {
+        const nuevoDocId = document.getElementById('sustituir-nuevo-doc').value;
+        if (!nuevoDocId) {
+            alert('Selecciona el documento que sustituye a este');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/documento/${docIdASustituir}/sustituir`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sustituido_por: parseInt(nuevoDocId) })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error al marcar sustitucion');
+            }
+        } catch (error) {
+            alert('Error de conexion');
         }
     }
 </script>

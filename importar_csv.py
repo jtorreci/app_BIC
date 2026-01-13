@@ -64,9 +64,17 @@ cursor.execute("""
         comentario TEXT,
         autor TEXT,
         fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (bien_id) REFERENCES bienes(id)
+        sustituido_por INTEGER,
+        FOREIGN KEY (bien_id) REFERENCES bienes(id),
+        FOREIGN KEY (sustituido_por) REFERENCES documentos(id)
     )
 """)
+
+# Migrar: añadir columna sustituido_por si no existe (para BD existentes)
+try:
+    cursor.execute("ALTER TABLE documentos ADD COLUMN sustituido_por INTEGER")
+except sqlite3.OperationalError:
+    pass  # La columna ya existe
 
 cursor.execute("""
     CREATE TABLE bienes (

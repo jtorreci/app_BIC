@@ -90,9 +90,16 @@ def index():
 def detalle(id):
     conn = get_db_connection()
     bien = conn.execute("SELECT * FROM bienes WHERE id = ?", (id,)).fetchone()
-    documentos = conn.execute(
-        "SELECT * FROM documentos WHERE bien_id = ? ORDER BY fecha_creacion DESC", (id,)
-    ).fetchall()
+    # Obtener documentos con info del documento que los sustituye
+    documentos = conn.execute("""
+        SELECT d.*,
+               s.titulo as sustituido_por_titulo,
+               s.id as sustituido_por_id
+        FROM documentos d
+        LEFT JOIN documentos s ON d.sustituido_por = s.id
+        WHERE d.bien_id = ?
+        ORDER BY d.fecha_creacion DESC
+    """, (id,)).fetchall()
     conn.close()
     return render_template(
         "detalle.html",
@@ -386,6 +393,92 @@ def api_eliminar_documento(id):
 @app.route("/api/tipos_documento")
 def api_tipos_documento():
     return jsonify(TIPOS_DOCUMENTO)
+
+
+@app.route("/api/documento/<int:id>/sustituir", methods=["POST"])
+def api_sustituir_documento(id):
+    data = request.get_json()
+    sustituido_por = data.get("sustituido_por")
+
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE documentos SET sustituido_por = ? WHERE id = ?",
+        (sustituido_por, id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True})
+
+
+@app.route("/bitacora")
+def bitacora():
+    periodo = request.args.get("periodo", "mes")
+    fecha_desde = request.args.get("desde", "")
+    fecha_hasta = request.args.get("hasta", "")
+    mostrar_sustituidos = request.args.get("sustituidos", "0")
+
+    # Calcular fechas por defecto segun el periodo
+    hoy = datetime.now()
+    if not fecha_desde or not fecha_hasta:
+        if periodo == "semana":
+            inicio = hoy - timedelta(days=hoy.weekday())
+            fin = inicio + timedelta(days=6)
+        elif periodo == "mes":
+            inicio = hoy.replace(day=1)
+            if hoy.month == 12:
+                fin = hoy.replace(year=hoy.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                fin = hoy.replace(month=hoy.month + 1, day=1) - timedelta(days=1)
+        else:  # todo
+            inicio = hoy.replace(month=1, day=1)
+            fin = hoy
+        fecha_desde = inicio.strftime("%Y-%m-%d")
+        fecha_hasta = fin.strftime("%Y-%m-%d")
+
+    conn = get_db_connection()
+
+    query = """
+        SELECT d.*, b.bien, b.municipio, b.provincia,
+               s.titulo as sustituido_por_titulo
+        FROM documentos d
+        JOIN bienes b ON d.bien_id = b.id
+        LEFT JOIN documentos s ON d.sustituido_por = s.id
+        WHERE date(d.fecha_creacion) >= ? AND date(d.fecha_creacion) <= ?
+    """
+    params = [fecha_desde, fecha_hasta]
+
+    if mostrar_sustituidos != "1":
+        query += " AND d.sustituido_por IS NULL"
+
+    query += " ORDER BY d.fecha_creacion DESC"
+
+    documentos = conn.execute(query, params).fetchall()
+
+    # Agrupar por fecha
+    docs_por_fecha = {}
+    for doc in documentos:
+        fecha = doc["fecha_creacion"][:10] if doc["fecha_creacion"] else "Sin fecha"
+        if fecha not in docs_por_fecha:
+            docs_por_fecha[fecha] = []
+        docs_por_fecha[fecha].append(doc)
+
+    # Estadisticas del periodo
+    total_docs = len(documentos)
+    total_activos = len([d for d in documentos if not d["sustituido_por"]])
+
+    conn.close()
+
+    return render_template(
+        "bitacora.html",
+        docs_por_fecha=docs_por_fecha,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        periodo=periodo,
+        mostrar_sustituidos=mostrar_sustituidos,
+        total_docs=total_docs,
+        total_activos=total_activos,
+    )
 
 
 @app.route("/api/estadisticas")
