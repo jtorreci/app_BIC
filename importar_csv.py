@@ -53,6 +53,21 @@ cursor = conn.cursor()
 
 cursor.execute("DROP TABLE IF EXISTS bienes")
 
+# Crear tabla de documentos si no existe (NO se borra al reimportar)
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS documentos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bien_id INTEGER NOT NULL,
+        tipo TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        enlace TEXT NOT NULL,
+        comentario TEXT,
+        autor TEXT,
+        fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (bien_id) REFERENCES bienes(id)
+    )
+""")
+
 cursor.execute("""
     CREATE TABLE bienes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

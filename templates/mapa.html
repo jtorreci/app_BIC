@@ -67,9 +67,13 @@
 
         bienes.forEach(bien => {
             const marker = L.marker([bien.lat, bien.lon]);
+            const docsInfo = bien.num_docs > 0
+                ? `<span class="badge bg-success">${bien.num_docs} doc${bien.num_docs > 1 ? 's' : ''}</span>`
+                : '<span class="badge bg-secondary">Sin docs</span>';
             marker.bindPopup(`
                 <strong>${bien.bien || 'Sin nombre'}</strong><br>
                 ${bien.municipio}, ${bien.provincia}<br>
+                ${docsInfo}<br>
                 <a href="/detalle/${bien.id}" class="btn btn-sm btn-primary mt-2">Ver detalle</a>
             `);
             markers.addLayer(marker);

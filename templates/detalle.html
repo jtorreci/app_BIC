@@ -74,8 +74,58 @@
                 </div>
             </div>
         </div>
+
+        <!-- Seccion de Documentacion -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-folder2-open"></i> Documentacion
+                    <span class="badge bg-secondary ms-2">{{ documentos|length }}</span>
+                </h5>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalDocumento">
+                    <i class="bi bi-plus-lg"></i> Nuevo
+                </button>
+            </div>
+            <div class="card-body">
+                {% if documentos %}
+                <div class="list-group list-group-flush">
+                    {% for doc in documentos %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="badge bg-info me-2">{{ doc.tipo }}</span>
+                                    <strong>{{ doc.titulo }}</strong>
+                                </div>
+                                {% if doc.comentario %}
+                                <p class="text-muted small mb-1">{{ doc.comentario }}</p>
+                                {% endif %}
+                                <div class="d-flex align-items-center">
+                                    <a href="{{ doc.enlace }}" target="_blank" class="btn btn-outline-primary btn-sm me-2">
+                                        <i class="bi bi-box-arrow-up-right"></i> Abrir
+                                    </a>
+                                    <small class="text-muted">
+                                        {% if doc.autor %}por {{ doc.autor }} - {% endif %}
+                                        {{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }}
+                                    </small>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarDocumento({{ doc.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">
+                    <i class="bi bi-inbox"></i> No hay documentos asociados
+                </p>
+                {% endif %}
+            </div>
+        </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
@@ -174,7 +224,60 @@
     <i class="bi bi-arrow-left"></i> Volver al listado
 </a>
 
+<!-- Modal para nuevo documento -->
+<div class="modal fade" id="modalDocumento" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-plus"></i> Nuevo Documento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formDocumento">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de documento *</label>
+                        <select class="form-select" id="doc-tipo" required>
+                            {% for tipo in tipos_documento %}
+                            <option value="{{ tipo }}">{{ tipo }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Titulo *</label>
+                        <input type="text" class="form-control" id="doc-titulo" required
+                               placeholder="Ej: Informe de inspeccion inicial">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Enlace (URL o ruta de red) *</label>
+                        <input type="text" class="form-control" id="doc-enlace" required
+                               placeholder="Ej: \\servidor\proyecto\archivo.pdf o https://...">
+                        <div class="form-text">Ruta al archivo en el NAS o URL web</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Comentario</label>
+                        <textarea class="form-control" id="doc-comentario" rows="2"
+                                  placeholder="Descripcion o notas adicionales"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Autor</label>
+                        <input type="text" class="form-control" id="doc-autor"
+                               placeholder="Tu nombre">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarDocumento()">
+                    <i class="bi bi-save"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    const BIEN_ID = {{ bien.id }};
+
     async function toggleEntregado(id) {
         const response = await fetch(`/api/toggle_entregado/${id}`, { method: 'POST' });
         const data = await response.json();
@@ -182,12 +285,63 @@
             location.reload();
         }
     }
-    
+
     async function toggleDatos(id) {
         const response = await fetch(`/api/toggle_datos/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
+        }
+    }
+
+    async function guardarDocumento() {
+        const tipo = document.getElementById('doc-tipo').value;
+        const titulo = document.getElementById('doc-titulo').value.trim();
+        const enlace = document.getElementById('doc-enlace').value.trim();
+        const comentario = document.getElementById('doc-comentario').value.trim();
+        const autor = document.getElementById('doc-autor').value.trim();
+
+        if (!titulo || !enlace) {
+            alert('Por favor completa los campos obligatorios');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/documento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bien_id: BIEN_ID,
+                    tipo: tipo,
+                    titulo: titulo,
+                    enlace: enlace,
+                    comentario: comentario,
+                    autor: autor
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error al guardar: ' + (data.error || 'Error desconocido'));
+            }
+        } catch (error) {
+            alert('Error de conexion');
+        }
+    }
+
+    async function eliminarDocumento(id) {
+        if (!confirm('¿Eliminar este documento?')) return;
+
+        try {
+            const response = await fetch(`/api/documento/${id}`, { method: 'DELETE' });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch (error) {
+            alert('Error al eliminar');
         }
     }
 </script>

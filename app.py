@@ -6,6 +6,20 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 db_path = Path(__file__).parent / "bienes.db"
 
+# Tipos de documentos predefinidos (fácil de ampliar)
+TIPOS_DOCUMENTO = [
+    "Informe",
+    "Modelo 3D",
+    "Ortofoto",
+    "Nube de puntos",
+    "Plano",
+    "Fotografias",
+    "Video",
+    "Ficha tecnica",
+    "Memoria",
+    "Otro",
+]
+
 
 def get_db_connection():
     conn = sqlite3.connect(db_path)
@@ -76,8 +90,16 @@ def index():
 def detalle(id):
     conn = get_db_connection()
     bien = conn.execute("SELECT * FROM bienes WHERE id = ?", (id,)).fetchone()
+    documentos = conn.execute(
+        "SELECT * FROM documentos WHERE bien_id = ? ORDER BY fecha_creacion DESC", (id,)
+    ).fetchall()
     conn.close()
-    return render_template("detalle.html", bien=bien)
+    return render_template(
+        "detalle.html",
+        bien=bien,
+        documentos=documentos,
+        tipos_documento=TIPOS_DOCUMENTO
+    )
 
 
 @app.route("/api/toggle_entregado/<int:id>", methods=["POST"])
@@ -124,22 +146,27 @@ def api_coordenadas():
 
     conn = get_db_connection()
 
-    query = "SELECT id, bien, municipio, provincia, lat, lon FROM bienes WHERE lat IS NOT NULL AND lon IS NOT NULL"
+    query = """
+        SELECT b.id, b.bien, b.municipio, b.provincia, b.lat, b.lon,
+               (SELECT COUNT(*) FROM documentos d WHERE d.bien_id = b.id) as num_docs
+        FROM bienes b
+        WHERE b.lat IS NOT NULL AND b.lon IS NOT NULL
+    """
     params = []
 
     if search:
-        query += " AND (bien LIKE ? OR municipio LIKE ? OR provincia LIKE ?)"
+        query += " AND (b.bien LIKE ? OR b.municipio LIKE ? OR b.provincia LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
     if filter_entregado == "1":
-        query += " AND entregado = 1"
+        query += " AND b.entregado = 1"
     elif filter_entregado == "0":
-        query += " AND entregado = 0"
+        query += " AND b.entregado = 0"
 
     if filter_datos == "1":
-        query += " AND tiene_datos = 1"
+        query += " AND b.tiene_datos = 1"
     elif filter_datos == "0":
-        query += " AND tiene_datos = 0"
+        query += " AND b.tiene_datos = 0"
 
     bienes = conn.execute(query, params).fetchall()
     conn.close()
@@ -152,6 +179,7 @@ def api_coordenadas():
             "provincia": b["provincia"],
             "lat": b["lat"],
             "lon": b["lon"],
+            "num_docs": b["num_docs"],
         }
         for b in bienes
     ])
@@ -305,6 +333,59 @@ def api_eventos():
             })
 
     return jsonify(eventos)
+
+
+@app.route("/api/documentos/<int:bien_id>")
+def api_documentos(bien_id):
+    conn = get_db_connection()
+    documentos = conn.execute(
+        "SELECT * FROM documentos WHERE bien_id = ? ORDER BY fecha_creacion DESC",
+        (bien_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(d) for d in documentos])
+
+
+@app.route("/api/documento", methods=["POST"])
+def api_crear_documento():
+    data = request.get_json()
+    bien_id = data.get("bien_id")
+    tipo = data.get("tipo")
+    titulo = data.get("titulo")
+    enlace = data.get("enlace")
+    comentario = data.get("comentario", "")
+    autor = data.get("autor", "")
+
+    if not all([bien_id, tipo, titulo, enlace]):
+        return jsonify({"success": False, "error": "Faltan campos obligatorios"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.execute(
+        """
+        INSERT INTO documentos (bien_id, tipo, titulo, enlace, comentario, autor)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (bien_id, tipo, titulo, enlace, comentario, autor)
+    )
+    documento_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "id": documento_id})
+
+
+@app.route("/api/documento/<int:id>", methods=["DELETE"])
+def api_eliminar_documento(id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM documentos WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@app.route("/api/tipos_documento")
+def api_tipos_documento():
+    return jsonify(TIPOS_DOCUMENTO)
 
 
 @app.route("/api/estadisticas")
