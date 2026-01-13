@@ -72,7 +72,13 @@ cursor.execute("""
         fecha_boletin TEXT,
         hay_datos TEXT,
         entregado INTEGER DEFAULT 0,
-        tiene_datos INTEGER DEFAULT 0
+        tiene_datos INTEGER DEFAULT 0,
+        planificado INTEGER DEFAULT 0,
+        fecha_inicio_toma TEXT,
+        fecha_fin_toma TEXT,
+        fecha_inicio_proceso TEXT,
+        fecha_fin_proceso TEXT,
+        udes INTEGER DEFAULT 0
     )
 """)
 

@@ -14,37 +14,45 @@
     <div class="card-body">
         <form method="GET" class="row g-3">
             <input type="hidden" name="vista" value="{{ vista }}">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <label class="form-label">Buscar</label>
                 <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Bien, municipio o provincia...">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Vista</label>
                 <div class="btn-group w-100" role="group">
-                    <a href="{{ url_for('index', vista='tarjetas', search=search, entregado=filter_entregado, datos=filter_datos) }}" 
+                    <a href="{{ url_for('index', vista='tarjetas', search=search, entregado=filter_entregado, datos=filter_datos, planificado=filter_planificado) }}"
                        class="btn {{ 'btn-primary' if vista == 'tarjetas' else 'btn-outline-primary' }}">
-                        <i class="bi bi-grid"></i> Tarjetas
+                        <i class="bi bi-grid"></i>
                     </a>
-                    <a href="{{ url_for('index', vista='lista', search=search, entregado=filter_entregado, datos=filter_datos) }}" 
+                    <a href="{{ url_for('index', vista='lista', search=search, entregado=filter_entregado, datos=filter_datos, planificado=filter_planificado) }}"
                        class="btn {{ 'btn-primary' if vista == 'lista' else 'btn-outline-primary' }}">
-                        <i class="bi bi-list"></i> Lista
+                        <i class="bi bi-list"></i>
                     </a>
                 </div>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Entregado</label>
+            <div class="col-md-1">
+                <label class="form-label">Entreg.</label>
                 <select class="form-select" name="entregado">
-                    <option value="">Todos</option>
-                    <option value="1" {% if filter_entregado == '1' %}selected{% endif %}>Sí</option>
+                    <option value="">-</option>
+                    <option value="1" {% if filter_entregado == '1' %}selected{% endif %}>Si</option>
                     <option value="0" {% if filter_entregado == '0' %}selected{% endif %}>No</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <label class="form-label">Datos</label>
                 <select class="form-select" name="datos">
-                    <option value="">Todos</option>
-                    <option value="1" {% if filter_datos == '1' %}selected{% endif %}>Sí</option>
+                    <option value="">-</option>
+                    <option value="1" {% if filter_datos == '1' %}selected{% endif %}>Si</option>
                     <option value="0" {% if filter_datos == '0' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Planif.</label>
+                <select class="form-select" name="planificado">
+                    <option value="">-</option>
+                    <option value="1" {% if filter_planificado == '1' %}selected{% endif %}>Si</option>
+                    <option value="0" {% if filter_planificado == '0' %}selected{% endif %}>No</option>
                 </select>
             </div>
             <div class="col-md-1 d-flex align-items-end">
@@ -75,9 +83,10 @@
                         <th>Nombre</th>
                         <th>Municipio</th>
                         <th>Provincia</th>
-                        <th>Categoría</th>
-                        <th>Entregado</th>
+                        <th>Categoria</th>
+                        <th>Entreg.</th>
                         <th>Datos</th>
+                        <th>Planif.</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -102,8 +111,17 @@
                         </td>
                         <td>
                             <span class="badge {{ 'badge-con-datos' if bien.tiene_datos else 'badge-sin-datos' }}">
-                                {{ 'Sí' if bien.tiene_datos else 'No' }}
+                                {{ 'Si' if bien.tiene_datos else 'No' }}
                             </span>
+                        </td>
+                        <td>
+                            {% if bien.planificado %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-calendar-check"></i>
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">-</span>
+                            {% endif %}
                         </td>
                         <td>
                             <button class="btn btn-sm btn-outline-success" title="Cambiar Entregado" onclick="toggleEntregado({{ bien.id }})">
@@ -159,14 +177,19 @@
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge {{ 'badge-con-datos' if bien.tiene_datos else 'badge-sin-datos' }}">
-                        <i class="bi {{ 'bi-check-circle' if bien.tiene_datos else 'bi-x-circle' }}"></i> 
+                        <i class="bi {{ 'bi-check-circle' if bien.tiene_datos else 'bi-x-circle' }}"></i>
                         Datos
                     </span>
-                    <button class="btn btn-sm btn-{{ 'primary' if bien.tiene_datos else 'danger' }}" 
+                    <button class="btn btn-sm btn-{{ 'primary' if bien.tiene_datos else 'danger' }}"
                             onclick="toggleDatos({{ bien.id }})">
                         <i class="bi {{ 'bi-check' if bien.tiene_datos else 'bi-x' }}"></i>
                     </button>
                 </div>
+                {% if bien.planificado %}
+                <div class="alert alert-warning py-1 px-2 mb-2">
+                    <small><i class="bi bi-calendar-check"></i> Planificado</small>
+                </div>
+                {% endif %}
                 <a href="{{ url_for('detalle', id=bien.id) }}" class="btn btn-sm btn-outline-primary w-100">
                     <i class="bi bi-eye"></i> Ver detalle
                 </a>
@@ -182,16 +205,16 @@
     <ul class="pagination justify-content-center">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=page-1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+            <a class="page-link" href="{{ url_for('index', page=page-1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos, planificado=filter_planificado) }}">
                 <i class="bi bi-chevron-left"></i>
             </a>
         </li>
         {% endif %}
-        
+
         {% for p in range(1, total_pages + 1) %}
             {% if p == page or p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
                 <li class="page-item {{ 'active' if p == page else '' }}">
-                    <a class="page-link" href="{{ url_for('index', page=p, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+                    <a class="page-link" href="{{ url_for('index', page=p, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos, planificado=filter_planificado) }}">
                         {{ p }}
                     </a>
                 </li>
@@ -199,10 +222,10 @@
                 <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
         {% endfor %}
-        
+
         {% if page < total_pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=page+1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos) }}">
+            <a class="page-link" href="{{ url_for('index', page=page+1, vista=vista, search=search, entregado=filter_entregado, datos=filter_datos, planificado=filter_planificado) }}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </li>

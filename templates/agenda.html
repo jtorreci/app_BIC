@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda - BIC{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item active">Agenda</li>
+    </ol>
+</nav>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtrar por fechas</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="filtrarSemana()">Esta semana</button>
+                    <button class="btn btn-outline-primary" onclick="filtrarMes()">Este mes</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label">Desde</label>
+                        <input type="date" class="form-control" id="fecha-desde">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Hasta</label>
+                        <input type="date" class="form-control" id="fecha-hasta">
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3 w-100" onclick="filtrarEventos()">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> Trabajos en el periodo</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="lista-trabajos" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted p-4">
+                        Selecciona un rango de fechas para ver los trabajos
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6>Leyenda</h6>
+                <div class="d-flex gap-4">
+                    <div><span class="badge" style="background-color: #0d6efd;">&nbsp;&nbsp;&nbsp;</span> Toma de datos</div>
+                    <div><span class="badge" style="background-color: #198754;">&nbsp;&nbsp;&nbsp;</span> Proceso</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div id="calendario"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/locales/es.global.min.js"></script>
+
+<style>
+    .fc-event {
+        cursor: pointer;
+    }
+    .trabajo-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .trabajo-item:last-child {
+        border-bottom: none;
+    }
+    .trabajo-item:hover {
+        background-color: #f8f9fa;
+    }
+    .trabajo-toma {
+        border-left: 4px solid #0d6efd;
+    }
+    .trabajo-proceso {
+        border-left: 4px solid #198754;
+    }
+</style>
+
+<script>
+    let calendar;
+    let todosLosEventos = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const calendarEl = document.getElementById('calendario');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'es',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,dayGridWeek'
+            },
+            events: '/api/eventos',
+            eventClick: function(info) {
+                const props = info.event.extendedProps;
+                window.location.href = `/detalle/${props.bien_id}`;
+            },
+            eventDidMount: function(info) {
+                const props = info.event.extendedProps;
+                let tooltip = info.event.title;
+                if (props.municipio) {
+                    tooltip += `\n${props.municipio}`;
+                }
+                if (props.udes) {
+                    tooltip += `\n${props.udes} UDEs`;
+                }
+                info.el.title = tooltip;
+            },
+            loading: function(isLoading) {
+                if (!isLoading) {
+                    todosLosEventos = calendar.getEvents().map(e => ({
+                        id: e.id,
+                        title: e.title,
+                        start: e.start,
+                        end: e.end,
+                        color: e.backgroundColor,
+                        extendedProps: e.extendedProps
+                    }));
+                }
+            }
+        });
+        calendar.render();
+
+        // Establecer fechas por defecto (este mes)
+        const hoy = new Date();
+        const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+
+        document.getElementById('fecha-desde').value = primerDia.toISOString().split('T')[0];
+        document.getElementById('fecha-hasta').value = ultimoDia.toISOString().split('T')[0];
+    });
+
+    function filtrarSemana() {
+        const hoy = new Date();
+        const diaSemana = hoy.getDay();
+        const lunes = new Date(hoy);
+        lunes.setDate(hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+        const domingo = new Date(lunes);
+        domingo.setDate(lunes.getDate() + 6);
+
+        document.getElementById('fecha-desde').value = lunes.toISOString().split('T')[0];
+        document.getElementById('fecha-hasta').value = domingo.toISOString().split('T')[0];
+        filtrarEventos();
+    }
+
+    function filtrarMes() {
+        const hoy = new Date();
+        const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+
+        document.getElementById('fecha-desde').value = primerDia.toISOString().split('T')[0];
+        document.getElementById('fecha-hasta').value = ultimoDia.toISOString().split('T')[0];
+        filtrarEventos();
+    }
+
+    async function filtrarEventos() {
+        const desde = document.getElementById('fecha-desde').value;
+        const hasta = document.getElementById('fecha-hasta').value;
+
+        if (!desde || !hasta) {
+            alert('Selecciona ambas fechas');
+            return;
+        }
+
+        const response = await fetch('/api/eventos');
+        const eventos = await response.json();
+
+        const fechaDesde = new Date(desde);
+        const fechaHasta = new Date(hasta);
+        fechaHasta.setHours(23, 59, 59);
+
+        const eventosFiltrados = eventos.filter(e => {
+            const inicio = new Date(e.start);
+            const fin = e.end ? new Date(e.end) : inicio;
+            return (inicio <= fechaHasta && fin >= fechaDesde);
+        });
+
+        mostrarListaTrabajos(eventosFiltrados, desde, hasta);
+
+        // Navegar el calendario a la fecha de inicio
+        calendar.gotoDate(desde);
+    }
+
+    function mostrarListaTrabajos(eventos, desde, hasta) {
+        const container = document.getElementById('lista-trabajos');
+
+        if (eventos.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted p-4">
+                    No hay trabajos planificados entre ${formatearFecha(desde)} y ${formatearFecha(hasta)}
+                </div>
+            `;
+            return;
+        }
+
+        // Ordenar por fecha de inicio
+        eventos.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+        let html = '';
+        eventos.forEach(e => {
+            const esToma = e.extendedProps.tipo === 'toma';
+            const clase = esToma ? 'trabajo-toma' : 'trabajo-proceso';
+            const badge = esToma
+                ? '<span class="badge" style="background-color: #0d6efd;">Toma</span>'
+                : '<span class="badge" style="background-color: #198754;">Proceso</span>';
+
+            html += `
+                <div class="trabajo-item ${clase}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${e.title.replace('Toma: ', '').replace('Proceso: ', '')}</strong>
+                            <br>
+                            <small class="text-muted">${e.extendedProps.municipio || ''}</small>
+                        </div>
+                        ${badge}
+                    </div>
+                    <div class="mt-2">
+                        <small>
+                            <i class="bi bi-calendar"></i>
+                            ${formatearFecha(e.start)}
+                            ${e.end && e.end !== e.start ? ' - ' + formatearFecha(e.end) : ''}
+                            ${e.extendedProps.udes ? ` (${e.extendedProps.udes} UDEs)` : ''}
+                        </small>
+                    </div>
+                    <a href="/detalle/${e.extendedProps.bien_id}" class="btn btn-sm btn-outline-primary mt-2">
+                        Ver detalle
+                    </a>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function formatearFecha(fecha) {
+        const f = new Date(fecha);
+        return f.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Planificacion - BIC{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item active">Planificacion</li>
+    </ol>
+</nav>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Buscar BIC</label>
+                <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Nombre, municipio o provincia...">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Planificado</label>
+                <select class="form-select" name="planificado">
+                    <option value="">Todos</option>
+                    <option value="1" {% if filter_planificado == '1' %}selected{% endif %}>Si</option>
+                    <option value="0" {% if filter_planificado == '0' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Mostrando <strong>{{ bienes|length }}</strong> de <strong>{{ total }}</strong> registros
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 50px;">Plan.</th>
+                        <th>Bien</th>
+                        <th>Municipio</th>
+                        <th style="width: 130px;">Inicio Toma</th>
+                        <th style="width: 80px;">UDEs</th>
+                        <th style="width: 130px;">Fin Toma</th>
+                        <th style="width: 130px;">Inicio Proceso</th>
+                        <th style="width: 130px;">Fin Proceso</th>
+                        <th style="width: 100px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bien in bienes %}
+                    <tr id="row-{{ bien.id }}" class="{{ 'table-success' if bien.planificado else '' }}">
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="plan-{{ bien.id }}" {{ 'checked' if bien.planificado }}
+                                       onchange="togglePlanificado({{ bien.id }})">
+                            </div>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('detalle', id=bien.id) }}" class="text-decoration-none fw-bold">
+                                {{ bien.bien[:40] }}{% if bien.bien|length > 40 %}...{% endif %}
+                            </a>
+                        </td>
+                        <td>{{ bien.municipio }}</td>
+                        <td>
+                            <input type="date" class="form-control form-control-sm"
+                                   id="inicio-toma-{{ bien.id }}" value="{{ bien.fecha_inicio_toma or '' }}"
+                                   {{ 'disabled' if not bien.planificado }}
+                                   onchange="calcularFinToma({{ bien.id }})">
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm"
+                                   id="udes-{{ bien.id }}" value="{{ bien.udes or '' }}" min="0"
+                                   {{ 'disabled' if not bien.planificado }}
+                                   onchange="calcularFinToma({{ bien.id }})">
+                        </td>
+                        <td>
+                            <input type="date" class="form-control form-control-sm"
+                                   id="fin-toma-{{ bien.id }}" value="{{ bien.fecha_fin_toma or '' }}"
+                                   {{ 'disabled' if not bien.planificado }} readonly
+                                   style="background-color: #e9ecef;">
+                        </td>
+                        <td>
+                            <input type="date" class="form-control form-control-sm"
+                                   id="inicio-proceso-{{ bien.id }}" value="{{ bien.fecha_inicio_proceso or '' }}"
+                                   {{ 'disabled' if not bien.planificado }}>
+                        </td>
+                        <td>
+                            <input type="date" class="form-control form-control-sm"
+                                   id="fin-proceso-{{ bien.id }}" value="{{ bien.fecha_fin_proceso or '' }}"
+                                   {{ 'disabled' if not bien.planificado }}>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-success" onclick="guardarPlanificacion({{ bien.id }})"
+                                    {{ 'disabled' if not bien.planificado }} id="btn-guardar-{{ bien.id }}">
+                                <i class="bi bi-check-lg"></i> Guardar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if total_pages > 1 %}
+<nav aria-label="Paginacion" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('planificacion', page=page-1, search=search, planificado=filter_planificado) }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page or p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+                <li class="page-item {{ 'active' if p == page else '' }}">
+                    <a class="page-link" href="{{ url_for('planificacion', page=p, search=search, planificado=filter_planificado) }}">
+                        {{ p }}
+                    </a>
+                </li>
+            {% elif p == page - 2 or p == page + 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('planificacion', page=page+1, search=search, planificado=filter_planificado) }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<script>
+    async function togglePlanificado(id) {
+        const response = await fetch(`/api/toggle_planificado/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        }
+    }
+
+    function calcularFinToma(id) {
+        const inicioInput = document.getElementById(`inicio-toma-${id}`);
+        const udesInput = document.getElementById(`udes-${id}`);
+        const finInput = document.getElementById(`fin-toma-${id}`);
+
+        const inicio = inicioInput.value;
+        const udes = parseInt(udesInput.value) || 0;
+
+        if (inicio && udes > 0) {
+            const fechaInicio = new Date(inicio);
+            fechaInicio.setDate(fechaInicio.getDate() + udes - 1);
+            finInput.value = fechaInicio.toISOString().split('T')[0];
+        } else {
+            finInput.value = '';
+        }
+    }
+
+    async function guardarPlanificacion(id) {
+        const data = {
+            fecha_inicio_toma: document.getElementById(`inicio-toma-${id}`).value,
+            udes: document.getElementById(`udes-${id}`).value,
+            fecha_inicio_proceso: document.getElementById(`inicio-proceso-${id}`).value,
+            fecha_fin_proceso: document.getElementById(`fin-proceso-${id}`).value
+        };
+
+        const btn = document.getElementById(`btn-guardar-${id}`);
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+        try {
+            const response = await fetch(`/api/guardar_planificacion/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardado';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+                if (result.fecha_fin_toma) {
+                    document.getElementById(`fin-toma-${id}`).value = result.fecha_fin_toma;
+                }
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar';
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                    btn.disabled = false;
+                }, 2000);
+            }
+        } catch (error) {
+            btn.innerHTML = '<i class="bi bi-x-lg"></i> Error';
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-danger');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-success');
+                btn.disabled = false;
+            }, 2000);
+        }
+    }
+</script>
+{% endblock %}
