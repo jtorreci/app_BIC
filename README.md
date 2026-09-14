@@ -1,68 +1,65 @@
-# Bienes de Interés Cultural - Aplicación Web
+# DIGIBIC - Bienes de Interés Cultural
 
-Aplicación web para gestionar y visualizar el listado de bienes de interés cultural.
-
-## Instalación
-
-1. Crear entorno virtual:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-2. Instalar dependencias:
-```bash
-pip install -r requirements.txt
-```
-
-3. Importar datos del CSV a la base de datos:
-```bash
-python importar_csv.py
-```
-
-## Uso
-
-Iniciar la aplicación:
-```bash
-python app.py
-```
-
-Abrir el navegador en: http://localhost:5000
+Aplicación web para gestionar el listado de bienes de interés cultural y la planificación
+de los trabajos de digitalización.
 
 ## Funcionalidades
 
-- **Dos vistas de listado**:
-  - Vista de tarjetas (20 por página)
-  - Vista de tabla (50 por página) para visualización rápida
-- Búsqueda por nombre, municipio o provincia
-- Filtros por estado de entrega y disponibilidad de datos
-- Vista detallada de cada bien
-- Campos "Entregado" y "Datos" editables directamente en el listado y en la vista de detalle
+- Listado en tarjetas (20 por página) o tabla (50 por página), con búsqueda y filtros
+- Vista de detalle con campos "Entregado" y "Datos" editables
+- Mapa de bienes (coordenadas UTM convertidas a WGS84)
+- Planificación de toma de datos y procesado, con agenda
+- Documentos por bien con versionado (sustitución) y bitácora
 - Estadísticas generales
-- Enlace a Google Maps para ubicación
 
-## Archivos
+## Arquitectura
 
-- `Bienes_Interes_Cultural.csv` - Datos originales
-- `importar_csv.py` - Script de importación
-- `app.py` - Aplicación Flask
-- `bienes.db` - Base de datos SQLite (se crea al ejecutar importar_csv.py)
-- `templates/` - Plantillas HTML
-- `DESPLIEGUE.md` - Guía completa de despliegue
+- Flask + gunicorn, PostgreSQL 16, todo en Docker Compose
+- `entrypoint.sh` importa `Bienes_Interes_Cultural.csv` solo si la tabla `bienes` está vacía
+- La app se sirve bajo un prefijo configurable (`URL_PREFIX`, p. ej. `/digibic`)
+- En producción no publica puertos: el proxy compartido de garnocex la alcanza por la red
+  Docker externa `proxy` con el alias `digibic-app`
 
-## Despliegue para colaboradores
+## Variables de entorno (`.env`)
 
-### Opción rápida: Render.com (Recomendado)
+| Variable | Descripción |
+|---|---|
+| `POSTGRES_PASSWORD` | Obligatoria. Solo caracteres válidos en URL (`openssl rand -hex 24`) |
+| `POSTGRES_DB`, `POSTGRES_USER` | Opcionales (`bienes_bic`, `bic`) |
+| `URL_PREFIX` | Prefijo de publicación, p. ej. `/digibic`. Vacío si se sirve en la raíz |
+| `NAS_BIC_PATH` | Carpeta del host con los archivos que sirve `/archivos/` |
 
-1. Crear cuenta en https://render.com
-2. Clic en "New" → "Web Service"
-3. Conectar a GitHub: seleccionar el repositorio `jtorreci/app_BIC`
-4. Render detectará automáticamente la configuración del archivo `render.yaml`
-5. Clic en "Create Web Service"
-6. Esperar unos minutos y listo
+## Desarrollo local
 
-Ver `DESPLIEGUE.md` para instrucciones detalladas de despliegue en:
-- VPS propio (DigitalOcean, Linode, Hetzner)
-- Render.com (gratuito/bara
-- PythonAnywhere
-- Railway
+```bash
+docker network create proxy   # una sola vez
+docker compose up -d --build
+```
+
+Sin proxy delante, añadir temporalmente `ports: ["127.0.0.1:5000:5000"]` al servicio `app`
+en un `docker-compose.override.yml` y abrir http://localhost:5000.
+
+## Despliegue en garnocex
+
+El proxy (Caddy) es un stack independiente compartido con otras aplicaciones del servidor.
+Su runbook y el contrato de rutas están en `garnocex-proxy/README.md` y
+`garnocex-proxy/CONTRACT.md` (fuera de este repositorio).
+
+```bash
+git clone https://github.com/jtorreci/app_BIC /opt/digibic
+cd /opt/digibic && $EDITOR .env
+docker compose up -d --build
+docker compose logs app | tail   # "Registros importados: 256"
+```
+
+## Scripts
+
+- `scripts/backup_db.sh`: volcado diario de PostgreSQL con retención de 30 días (cron)
+- `scripts/restaurar_render.py`: reaplica los datos editados exportados de Render
+  (`docker compose exec -T app python scripts/restaurar_render.py < export.json`)
+
+Restaurar un backup:
+
+```bash
+gunzip -c digibic_YYYYMMDD_HHMMSS.sql.gz | docker compose exec -T db psql -U bic -d bienes_bic
+```
