@@ -149,7 +149,7 @@
 
 <script>
     async function togglePlanificado(id) {
-        const response = await fetch(`${PREFIX}/api/toggle_planificado/${id}`, { method: 'POST' });
+        const response = await apiFetch(`${PREFIX}/api/toggle_planificado/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -186,7 +186,7 @@
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
 
         try {
-            const response = await fetch(`${PREFIX}/api/guardar_planificacion/${id}`, {
+            const response = await apiFetch(`${PREFIX}/api/guardar_planificacion/${id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)

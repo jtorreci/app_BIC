@@ -4,12 +4,16 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, timedelta
+from flask_login import current_user
+
+from auth import init_auth
+from db import get_db_connection
+from usuarios import crear_admin, usuarios_bp
 
 URL_PREFIX = os.environ.get("URL_PREFIX", "")  # Ej: "/DIGIBIC" para jtorrecilla.es/DIGIBIC
 
 app = Flask(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://bic:bic_secret@localhost:5432/bienes_bic")
 NAS_FILES_PATH = os.environ.get("NAS_FILES_PATH", "/data/BIC")
 
 
@@ -38,9 +42,10 @@ TIPOS_DOCUMENTO = [
 ]
 
 
-def get_db_connection():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+# Autenticación: todas las rutas exigen sesión salvo el login y los estáticos
+init_auth(app, URL_PREFIX)
+app.register_blueprint(usuarios_bp)
+app.cli.add_command(crear_admin)
 
 
 @app.context_processor
@@ -433,7 +438,8 @@ def api_crear_documento():
     titulo = data.get("titulo")
     enlace = data.get("enlace")
     comentario = data.get("comentario", "")
-    autor = data.get("autor", "")
+    # El autor se toma de la sesión; se ignora cualquier valor enviado por el cliente
+    autor = current_user.nombre
 
     if not all([bien_id, tipo, titulo, enlace]):
         return jsonify({"success": False, "error": "Faltan campos obligatorios"}), 400
@@ -442,11 +448,11 @@ def api_crear_documento():
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO documentos (bien_id, tipo, titulo, enlace, comentario, autor)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO documentos (bien_id, tipo, titulo, enlace, comentario, autor, creado_por)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
-        (bien_id, tipo, titulo, enlace, comentario, autor)
+        (bien_id, tipo, titulo, enlace, comentario, autor, current_user.id)
     )
     documento_id = cur.fetchone()[0]
     conn.commit()

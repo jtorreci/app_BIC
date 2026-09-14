@@ -52,7 +52,7 @@
             datos: '{{ filter_datos }}'
         });
 
-        const response = await fetch(`${PREFIX}/api/coordenadas?${params}`);
+        const response = await apiFetch(`${PREFIX}/api/coordenadas?${params}`);
         const bienes = await response.json();
 
         document.getElementById('contador').textContent =

@@ -236,7 +236,7 @@
 
 <script>
     async function toggleEntregado(id) {
-        const response = await fetch(`${PREFIX}/api/toggle_entregado/${id}`, { method: 'POST' });
+        const response = await apiFetch(`${PREFIX}/api/toggle_entregado/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -244,7 +244,7 @@
     }
 
     async function toggleDatos(id) {
-        const response = await fetch(`${PREFIX}/api/toggle_datos/${id}`, { method: 'POST' });
+        const response = await apiFetch(`${PREFIX}/api/toggle_datos/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
