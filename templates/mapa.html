@@ -5,7 +5,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ prefix }}/">Inicio</a></li>
         <li class="breadcrumb-item active">Mapa</li>
     </ol>
 </nav>
@@ -52,7 +52,7 @@
             datos: '{{ filter_datos }}'
         });
 
-        const response = await fetch(`/api/coordenadas?${params}`);
+        const response = await fetch(`${PREFIX}/api/coordenadas?${params}`);
         const bienes = await response.json();
 
         document.getElementById('contador').textContent =
@@ -74,7 +74,7 @@
                 <strong>${bien.bien || 'Sin nombre'}</strong><br>
                 ${bien.municipio}, ${bien.provincia}<br>
                 ${docsInfo}<br>
-                <a href="/detalle/${bien.id}" class="btn btn-sm btn-primary mt-2">Ver detalle</a>
+                <a href="${PREFIX}/detalle/${bien.id}" class="btn btn-sm btn-primary mt-2">Ver detalle</a>
             `);
             markers.addLayer(marker);
             bounds.push([bien.lat, bien.lon]);

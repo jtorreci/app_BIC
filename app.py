@@ -1,10 +1,27 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-import sqlite3
+import os
 from pathlib import Path
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory, abort
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timedelta
 
+URL_PREFIX = os.environ.get("URL_PREFIX", "")  # Ej: "/DIGIBIC" para jtorrecilla.es/DIGIBIC
+
 app = Flask(__name__)
-db_path = Path(__file__).parent / "bienes.db"
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://bic:bic_secret@localhost:5432/bienes_bic")
+NAS_FILES_PATH = os.environ.get("NAS_FILES_PATH", "/data/BIC")
+
+
+@app.template_filter("fecha_corta")
+def fecha_corta(value):
+    """Convierte datetime o string a formato YYYY-MM-DD."""
+    if not value:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    return str(value)[:10]
+
 
 # Tipos de documentos predefinidos (fácil de ampliar)
 TIPOS_DOCUMENTO = [
@@ -22,9 +39,26 @@ TIPOS_DOCUMENTO = [
 
 
 def get_db_connection():
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+
+@app.context_processor
+def inject_prefix():
+    return dict(prefix=URL_PREFIX)
+
+
+@app.route("/archivos/<path:filepath>")
+def servir_archivo(filepath):
+    """Sirve archivos del NAS montado en /data/BIC."""
+    base = Path(NAS_FILES_PATH).resolve()
+    full = (base / filepath).resolve()
+    # Prevenir path traversal
+    if not str(full).startswith(str(base)):
+        abort(403)
+    if not full.is_file():
+        abort(404)
+    return send_from_directory(str(full.parent), full.name)
 
 
 @app.route("/")
@@ -38,12 +72,13 @@ def index():
     filter_planificado = request.args.get("planificado", "")
 
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query = "SELECT * FROM bienes WHERE 1=1"
     params = []
 
     if search:
-        query += " AND (bien LIKE ? OR municipio LIKE ? OR provincia LIKE ?)"
+        query += " AND (bien ILIKE %s OR municipio ILIKE %s OR provincia ILIKE %s)"
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
     if filter_entregado == "1":
@@ -61,12 +96,15 @@ def index():
     elif filter_planificado == "0":
         query += " AND planificado = 0"
 
-    total = conn.execute(f"SELECT COUNT(*) FROM ({query})", params).fetchone()[0]
+    cur.execute(f"SELECT COUNT(*) as count FROM ({query}) sub", params)
+    total = cur.fetchone()["count"]
 
-    query += " ORDER BY bien LIMIT ? OFFSET ?"
+    query += " ORDER BY bien LIMIT %s OFFSET %s"
     params.extend([per_page, (page - 1) * per_page])
 
-    bienes = conn.execute(query, params).fetchall()
+    cur.execute(query, params)
+    bienes = cur.fetchall()
+    cur.close()
     conn.close()
 
     total_pages = (total + per_page - 1) // per_page
@@ -89,17 +127,21 @@ def index():
 @app.route("/detalle/<int:id>")
 def detalle(id):
     conn = get_db_connection()
-    bien = conn.execute("SELECT * FROM bienes WHERE id = ?", (id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM bienes WHERE id = %s", (id,))
+    bien = cur.fetchone()
     # Obtener documentos con info del documento que los sustituye
-    documentos = conn.execute("""
+    cur.execute("""
         SELECT d.*,
                s.titulo as sustituido_por_titulo,
                s.id as sustituido_por_id
         FROM documentos d
         LEFT JOIN documentos s ON d.sustituido_por = s.id
-        WHERE d.bien_id = ?
+        WHERE d.bien_id = %s
         ORDER BY d.fecha_creacion DESC
-    """, (id,)).fetchall()
+    """, (id,))
+    documentos = cur.fetchall()
+    cur.close()
     conn.close()
     return render_template(
         "detalle.html",
@@ -112,10 +154,13 @@ def detalle(id):
 @app.route("/api/toggle_entregado/<int:id>", methods=["POST"])
 def toggle_entregado(id):
     conn = get_db_connection()
-    bien = conn.execute("SELECT entregado FROM bienes WHERE id = ?", (id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT entregado FROM bienes WHERE id = %s", (id,))
+    bien = cur.fetchone()
     nuevo_valor = 0 if bien["entregado"] else 1
-    conn.execute("UPDATE bienes SET entregado = ? WHERE id = ?", (nuevo_valor, id))
+    cur.execute("UPDATE bienes SET entregado = %s WHERE id = %s", (nuevo_valor, id))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"success": True, "entregado": nuevo_valor})
 
@@ -123,10 +168,13 @@ def toggle_entregado(id):
 @app.route("/api/toggle_datos/<int:id>", methods=["POST"])
 def toggle_datos(id):
     conn = get_db_connection()
-    bien = conn.execute("SELECT tiene_datos FROM bienes WHERE id = ?", (id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT tiene_datos FROM bienes WHERE id = %s", (id,))
+    bien = cur.fetchone()
     nuevo_valor = 0 if bien["tiene_datos"] else 1
-    conn.execute("UPDATE bienes SET tiene_datos = ? WHERE id = ?", (nuevo_valor, id))
+    cur.execute("UPDATE bienes SET tiene_datos = %s WHERE id = %s", (nuevo_valor, id))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"success": True, "tiene_datos": nuevo_valor})
 
@@ -152,6 +200,7 @@ def api_coordenadas():
     filter_datos = request.args.get("datos", "")
 
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query = """
         SELECT b.id, b.bien, b.municipio, b.provincia, b.lat, b.lon,
@@ -162,7 +211,7 @@ def api_coordenadas():
     params = []
 
     if search:
-        query += " AND (b.bien LIKE ? OR b.municipio LIKE ? OR b.provincia LIKE ?)"
+        query += " AND (b.bien ILIKE %s OR b.municipio ILIKE %s OR b.provincia ILIKE %s)"
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
     if filter_entregado == "1":
@@ -175,7 +224,9 @@ def api_coordenadas():
     elif filter_datos == "0":
         query += " AND b.tiene_datos = 0"
 
-    bienes = conn.execute(query, params).fetchall()
+    cur.execute(query, params)
+    bienes = cur.fetchall()
+    cur.close()
     conn.close()
 
     return jsonify([
@@ -200,12 +251,13 @@ def planificacion():
     filter_planificado = request.args.get("planificado", "")
 
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query = "SELECT * FROM bienes WHERE 1=1"
     params = []
 
     if search:
-        query += " AND (bien LIKE ? OR municipio LIKE ? OR provincia LIKE ?)"
+        query += " AND (bien ILIKE %s OR municipio ILIKE %s OR provincia ILIKE %s)"
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
     if filter_planificado == "1":
@@ -213,12 +265,15 @@ def planificacion():
     elif filter_planificado == "0":
         query += " AND planificado = 0"
 
-    total = conn.execute(f"SELECT COUNT(*) FROM ({query})", params).fetchone()[0]
+    cur.execute(f"SELECT COUNT(*) as count FROM ({query}) sub", params)
+    total = cur.fetchone()["count"]
 
-    query += " ORDER BY planificado DESC, fecha_inicio_toma ASC, bien LIMIT ? OFFSET ?"
+    query += " ORDER BY planificado DESC, fecha_inicio_toma ASC, bien LIMIT %s OFFSET %s"
     params.extend([per_page, (page - 1) * per_page])
 
-    bienes = conn.execute(query, params).fetchall()
+    cur.execute(query, params)
+    bienes = cur.fetchall()
+    cur.close()
     conn.close()
 
     total_pages = (total + per_page - 1) // per_page
@@ -242,17 +297,20 @@ def agenda():
 @app.route("/api/toggle_planificado/<int:id>", methods=["POST"])
 def toggle_planificado(id):
     conn = get_db_connection()
-    bien = conn.execute("SELECT planificado FROM bienes WHERE id = ?", (id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT planificado FROM bienes WHERE id = %s", (id,))
+    bien = cur.fetchone()
     nuevo_valor = 0 if bien["planificado"] else 1
     if nuevo_valor == 0:
-        conn.execute("""
+        cur.execute("""
             UPDATE bienes SET planificado = 0, fecha_inicio_toma = NULL,
             fecha_fin_toma = NULL, fecha_inicio_proceso = NULL,
-            fecha_fin_proceso = NULL, udes = 0 WHERE id = ?
+            fecha_fin_proceso = NULL, udes = 0 WHERE id = %s
         """, (id,))
     else:
-        conn.execute("UPDATE bienes SET planificado = ? WHERE id = ?", (nuevo_valor, id))
+        cur.execute("UPDATE bienes SET planificado = %s WHERE id = %s", (nuevo_valor, id))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"success": True, "planificado": nuevo_valor})
 
@@ -272,17 +330,19 @@ def guardar_planificacion(id):
         fecha_fin_toma = fecha_fin.strftime("%Y-%m-%d")
 
     conn = get_db_connection()
-    conn.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         UPDATE bienes SET
             planificado = 1,
-            fecha_inicio_toma = ?,
-            fecha_fin_toma = ?,
-            fecha_inicio_proceso = ?,
-            fecha_fin_proceso = ?,
-            udes = ?
-        WHERE id = ?
+            fecha_inicio_toma = %s,
+            fecha_fin_toma = %s,
+            fecha_inicio_proceso = %s,
+            fecha_fin_proceso = %s,
+            udes = %s
+        WHERE id = %s
     """, (fecha_inicio_toma, fecha_fin_toma, fecha_inicio_proceso, fecha_fin_proceso, udes, id))
     conn.commit()
+    cur.close()
     conn.close()
 
     return jsonify({
@@ -297,6 +357,7 @@ def api_eventos():
     fecha_fin = request.args.get("end", "")
 
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query = """
         SELECT id, bien, municipio, fecha_inicio_toma, fecha_fin_toma,
@@ -304,9 +365,10 @@ def api_eventos():
         FROM bienes
         WHERE planificado = 1
     """
-    params = []
 
-    bienes = conn.execute(query, params).fetchall()
+    cur.execute(query)
+    bienes = cur.fetchall()
+    cur.close()
     conn.close()
 
     eventos = []
@@ -345,12 +407,22 @@ def api_eventos():
 @app.route("/api/documentos/<int:bien_id>")
 def api_documentos(bien_id):
     conn = get_db_connection()
-    documentos = conn.execute(
-        "SELECT * FROM documentos WHERE bien_id = ? ORDER BY fecha_creacion DESC",
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        "SELECT * FROM documentos WHERE bien_id = %s ORDER BY fecha_creacion DESC",
         (bien_id,)
-    ).fetchall()
+    )
+    documentos = cur.fetchall()
+    cur.close()
     conn.close()
-    return jsonify([dict(d) for d in documentos])
+    # Serializar fecha_creacion a string si es datetime
+    result = []
+    for d in documentos:
+        row = dict(d)
+        if isinstance(row.get("fecha_creacion"), datetime):
+            row["fecha_creacion"] = row["fecha_creacion"].isoformat()
+        result.append(row)
+    return jsonify(result)
 
 
 @app.route("/api/documento", methods=["POST"])
@@ -367,15 +439,18 @@ def api_crear_documento():
         return jsonify({"success": False, "error": "Faltan campos obligatorios"}), 400
 
     conn = get_db_connection()
-    cursor = conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         """
         INSERT INTO documentos (bien_id, tipo, titulo, enlace, comentario, autor)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
         """,
         (bien_id, tipo, titulo, enlace, comentario, autor)
     )
-    documento_id = cursor.lastrowid
+    documento_id = cur.fetchone()[0]
     conn.commit()
+    cur.close()
     conn.close()
 
     return jsonify({"success": True, "id": documento_id})
@@ -384,8 +459,10 @@ def api_crear_documento():
 @app.route("/api/documento/<int:id>", methods=["DELETE"])
 def api_eliminar_documento(id):
     conn = get_db_connection()
-    conn.execute("DELETE FROM documentos WHERE id = ?", (id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM documentos WHERE id = %s", (id,))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"success": True})
 
@@ -401,11 +478,13 @@ def api_sustituir_documento(id):
     sustituido_por = data.get("sustituido_por")
 
     conn = get_db_connection()
-    conn.execute(
-        "UPDATE documentos SET sustituido_por = ? WHERE id = ?",
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE documentos SET sustituido_por = %s WHERE id = %s",
         (sustituido_por, id)
     )
     conn.commit()
+    cur.close()
     conn.close()
 
     return jsonify({"success": True})
@@ -437,6 +516,7 @@ def bitacora():
         fecha_hasta = fin.strftime("%Y-%m-%d")
 
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query = """
         SELECT d.*, b.bien, b.municipio, b.provincia,
@@ -444,7 +524,7 @@ def bitacora():
         FROM documentos d
         JOIN bienes b ON d.bien_id = b.id
         LEFT JOIN documentos s ON d.sustituido_por = s.id
-        WHERE date(d.fecha_creacion) >= ? AND date(d.fecha_creacion) <= ?
+        WHERE d.fecha_creacion::date >= %s AND d.fecha_creacion::date <= %s
     """
     params = [fecha_desde, fecha_hasta]
 
@@ -453,12 +533,19 @@ def bitacora():
 
     query += " ORDER BY d.fecha_creacion DESC"
 
-    documentos = conn.execute(query, params).fetchall()
+    cur.execute(query, params)
+    documentos = cur.fetchall()
 
     # Agrupar por fecha
     docs_por_fecha = {}
     for doc in documentos:
-        fecha = doc["fecha_creacion"][:10] if doc["fecha_creacion"] else "Sin fecha"
+        fc = doc["fecha_creacion"]
+        if isinstance(fc, datetime):
+            fecha = fc.strftime("%Y-%m-%d")
+        elif fc:
+            fecha = str(fc)[:10]
+        else:
+            fecha = "Sin fecha"
         if fecha not in docs_por_fecha:
             docs_por_fecha[fecha] = []
         docs_por_fecha[fecha].append(doc)
@@ -467,6 +554,7 @@ def bitacora():
     total_docs = len(documentos)
     total_activos = len([d for d in documentos if not d["sustituido_por"]])
 
+    cur.close()
     conn.close()
 
     return render_template(
@@ -484,32 +572,35 @@ def bitacora():
 @app.route("/api/estadisticas")
 def estadisticas():
     conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    total = conn.execute("SELECT COUNT(*) FROM bienes").fetchone()[0]
-    entregados = conn.execute(
-        "SELECT COUNT(*) FROM bienes WHERE entregado = 1"
-    ).fetchone()[0]
-    con_datos = conn.execute(
-        "SELECT COUNT(*) FROM bienes WHERE tiene_datos = 1"
-    ).fetchone()[0]
+    cur.execute("SELECT COUNT(*) as count FROM bienes")
+    total = cur.fetchone()["count"]
+    cur.execute("SELECT COUNT(*) as count FROM bienes WHERE entregado = 1")
+    entregados = cur.fetchone()["count"]
+    cur.execute("SELECT COUNT(*) as count FROM bienes WHERE tiene_datos = 1")
+    con_datos = cur.fetchone()["count"]
 
-    por_provincia = conn.execute("""
-        SELECT provincia, COUNT(*) as count 
-        FROM bienes 
-        WHERE provincia != '' 
-        GROUP BY provincia 
-        ORDER BY count DESC 
-        LIMIT 10
-    """).fetchall()
-
-    por_categoria = conn.execute("""
-        SELECT categoria, COUNT(*) as count 
-        FROM bienes 
-        WHERE categoria != '' 
-        GROUP BY categoria 
+    cur.execute("""
+        SELECT provincia, COUNT(*) as count
+        FROM bienes
+        WHERE provincia != ''
+        GROUP BY provincia
         ORDER BY count DESC
-    """).fetchall()
+        LIMIT 10
+    """)
+    por_provincia = cur.fetchall()
 
+    cur.execute("""
+        SELECT categoria, COUNT(*) as count
+        FROM bienes
+        WHERE categoria != ''
+        GROUP BY categoria
+        ORDER BY count DESC
+    """)
+    por_categoria = cur.fetchall()
+
+    cur.close()
     conn.close()
 
     return jsonify(
@@ -521,6 +612,16 @@ def estadisticas():
             "por_categoria": [dict(c) for c in por_categoria],
         }
     )
+
+
+def create_app():
+    """Aplica URL_PREFIX si está configurado (ej: /DIGIBIC)."""
+    if URL_PREFIX:
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+        from werkzeug.exceptions import NotFound
+        app.config["APPLICATION_ROOT"] = URL_PREFIX
+        return DispatcherMiddleware(NotFound(), {URL_PREFIX: app})
+    return app
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ prefix }}/">Inicio</a></li>
         <li class="breadcrumb-item active">{{ bien.bien }}</li>
     </ol>
 </nav>
@@ -113,7 +113,7 @@
                                 </p>
                                 {% endif %}
                                 <div class="d-flex align-items-center flex-wrap gap-1">
-                                    <a href="{{ doc.enlace }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <a href="{% if doc.enlace.startswith('http') %}{{ doc.enlace }}{% else %}{{ prefix }}/archivos/{{ doc.enlace }}{% endif %}" target="_blank" class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-box-arrow-up-right"></i> Abrir
                                     </a>
                                     {% if not doc.sustituido_por %}
@@ -122,7 +122,7 @@
                                     </button>
                                     {% endif %}
                                     <small class="text-muted ms-2">
-                                        <i class="bi bi-calendar"></i> {{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }}
+                                        <i class="bi bi-calendar"></i> {{ doc.fecha_creacion|fecha_corta }}
                                         {% if doc.autor %} - {{ doc.autor }}{% endif %}
                                     </small>
                                 </div>
@@ -229,7 +229,7 @@
                 {% else %}
                 <p class="text-muted mb-0">Este BIC no tiene planificacion asignada.</p>
                 {% endif %}
-                <a href="/planificacion?search={{ bien.bien[:20] }}" class="btn btn-outline-warning btn-sm mt-3 w-100">
+                <a href="{{ prefix }}/planificacion?search={{ bien.bien[:20] }}" class="btn btn-outline-warning btn-sm mt-3 w-100">
                     <i class="bi bi-pencil"></i> Editar planificacion
                 </a>
             </div>
@@ -237,7 +237,7 @@
     </div>
 </div>
 
-<a href="/" class="btn btn-secondary">
+<a href="{{ prefix }}/" class="btn btn-secondary">
     <i class="bi bi-arrow-left"></i> Volver al listado
 </a>
 
@@ -267,8 +267,8 @@
                     <div class="mb-3">
                         <label class="form-label">Enlace (URL o ruta de red) *</label>
                         <input type="text" class="form-control" id="doc-enlace" required
-                               placeholder="Ej: \\servidor\proyecto\archivo.pdf o https://...">
-                        <div class="form-text">Ruta al archivo en el NAS o URL web</div>
+                               placeholder="Ej: Caceres/Catedral/informe.pdf o https://...">
+                        <div class="form-text">Ruta relativa en el NAS (carpeta/archivo) o URL web completa</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comentario</label>
@@ -308,7 +308,7 @@
                         <option value="">-- Seleccionar --</option>
                         {% for doc in documentos %}
                         {% if not doc.sustituido_por %}
-                        <option value="{{ doc.id }}">{{ doc.titulo }} ({{ doc.fecha_creacion[:10] if doc.fecha_creacion else '' }})</option>
+                        <option value="{{ doc.id }}">{{ doc.titulo }} ({{ doc.fecha_creacion|fecha_corta }})</option>
                         {% endif %}
                         {% endfor %}
                     </select>
@@ -332,7 +332,7 @@
     let docIdASustituir = null;
 
     async function toggleEntregado(id) {
-        const response = await fetch(`/api/toggle_entregado/${id}`, { method: 'POST' });
+        const response = await fetch(`${PREFIX}/api/toggle_entregado/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -340,7 +340,7 @@
     }
 
     async function toggleDatos(id) {
-        const response = await fetch(`/api/toggle_datos/${id}`, { method: 'POST' });
+        const response = await fetch(`${PREFIX}/api/toggle_datos/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -360,7 +360,7 @@
         }
 
         try {
-            const response = await fetch('/api/documento', {
+            const response = await fetch(`${PREFIX}/api/documento`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -388,7 +388,7 @@
         if (!confirm('¿Eliminar este documento?')) return;
 
         try {
-            const response = await fetch(`/api/documento/${id}`, { method: 'DELETE' });
+            const response = await fetch(`${PREFIX}/api/documento/${id}`, { method: 'DELETE' });
             const data = await response.json();
             if (data.success) {
                 location.reload();
@@ -419,7 +419,7 @@
         }
 
         try {
-            const response = await fetch(`/api/documento/${docIdASustituir}/sustituir`, {
+            const response = await fetch(`${PREFIX}/api/documento/${docIdASustituir}/sustituir`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sustituido_por: parseInt(nuevoDocId) })

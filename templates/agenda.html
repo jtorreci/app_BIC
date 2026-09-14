@@ -5,7 +5,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ prefix }}/">Inicio</a></li>
         <li class="breadcrumb-item active">Agenda</li>
     </ol>
 </nav>
@@ -110,10 +110,10 @@
                 center: 'title',
                 right: 'dayGridMonth,dayGridWeek'
             },
-            events: '/api/eventos',
+            events: `${PREFIX}/api/eventos`,
             eventClick: function(info) {
                 const props = info.event.extendedProps;
-                window.location.href = `/detalle/${props.bien_id}`;
+                window.location.href = `${PREFIX}/detalle/${props.bien_id}`;
             },
             eventDidMount: function(info) {
                 const props = info.event.extendedProps;
@@ -182,7 +182,7 @@
             return;
         }
 
-        const response = await fetch('/api/eventos');
+        const response = await fetch(`${PREFIX}/api/eventos`);
         const eventos = await response.json();
 
         const fechaDesde = new Date(desde);
@@ -242,7 +242,7 @@
                             ${e.extendedProps.udes ? ` (${e.extendedProps.udes} UDEs)` : ''}
                         </small>
                     </div>
-                    <a href="/detalle/${e.extendedProps.bien_id}" class="btn btn-sm btn-outline-primary mt-2">
+                    <a href="${PREFIX}/detalle/${e.extendedProps.bien_id}" class="btn btn-sm btn-outline-primary mt-2">
                         Ver detalle
                     </a>
                 </div>
