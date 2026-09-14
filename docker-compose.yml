@@ -1,0 +1,51 @@
+# DIGIBIC stack: app + PostgreSQL.
+# TLS and routing are handled by the shared reverse proxy stack (garnocex-proxy),
+# which reaches the app through the external "proxy" network as "digibic-app".
+# One-time prerequisite on the host: docker network create proxy
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bienes_bic}
+      POSTGRES_USER: ${POSTGRES_USER:-bic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bic} -d ${POSTGRES_DB:-bienes_bic}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bic}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-bienes_bic}
+      FLASK_DEBUG: ${FLASK_DEBUG:-0}
+      URL_PREFIX: ${URL_PREFIX:-}
+      NAS_FILES_PATH: /data/BIC
+    volumes:
+      - ${NAS_BIC_PATH:-./datos_bic}:/data/BIC:ro
+    expose:
+      - "5000"
+    networks:
+      internal:
+      proxy:
+        aliases:
+          - digibic-app
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+  proxy:
+    external: true
