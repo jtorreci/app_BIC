@@ -182,7 +182,7 @@
             return;
         }
 
-        const response = await fetch(`${PREFIX}/api/eventos`);
+        const response = await apiFetch(`${PREFIX}/api/eventos`);
         const eventos = await response.json();
 
         const fechaDesde = new Date(desde);

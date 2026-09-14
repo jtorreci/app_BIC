@@ -24,5 +24,8 @@ else:
 conn.close()
 " || python importar_csv.py
 
+echo "Verificando esquema de usuarios..."
+python esquema.py
+
 echo "Iniciando aplicación..."
 exec gunicorn --bind 0.0.0.0:5000 --workers 3 "app:create_app()"

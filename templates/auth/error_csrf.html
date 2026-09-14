@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitud no válida - BIC{% endblock %}
+
+{% block content %}
+<div class="alert alert-warning">
+    <h5><i class="bi bi-exclamation-triangle"></i> Solicitud no válida</h5>
+    <p class="mb-2">El formulario ha caducado o no se ha podido verificar. Vuelve a cargar la página e inténtalo de nuevo.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Volver al inicio</a>
+</div>
+{% endblock %}

@@ -12,6 +12,7 @@ bienes.db
 *.sqlite3
 .env
 .claude/
+.pytest_cache/
 datos_bic/
 *.docx
 *.pdf

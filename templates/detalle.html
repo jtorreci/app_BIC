@@ -117,7 +117,7 @@
                                         <i class="bi bi-box-arrow-up-right"></i> Abrir
                                     </a>
                                     {% if not doc.sustituido_por %}
-                                    <button class="btn btn-outline-warning btn-sm" onclick="mostrarModalSustituir({{ doc.id }}, '{{ doc.titulo }}')" title="Marcar como sustituido">
+                                    <button class="btn btn-outline-warning btn-sm" data-titulo="{{ doc.titulo }}" onclick="mostrarModalSustituir({{ doc.id }}, this.dataset.titulo)" title="Marcar como sustituido">
                                         <i class="bi bi-arrow-repeat"></i>
                                     </button>
                                     {% endif %}
@@ -277,8 +277,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Autor</label>
-                        <input type="text" class="form-control" id="doc-autor"
-                               placeholder="Tu nombre">
+                        <input type="text" class="form-control" value="{{ current_user.nombre }}" readonly disabled>
+                        <div class="form-text">Se asigna automáticamente a partir de la cuenta con la que has iniciado sesión</div>
                     </div>
                 </form>
             </div>
@@ -332,7 +332,7 @@
     let docIdASustituir = null;
 
     async function toggleEntregado(id) {
-        const response = await fetch(`${PREFIX}/api/toggle_entregado/${id}`, { method: 'POST' });
+        const response = await apiFetch(`${PREFIX}/api/toggle_entregado/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -340,7 +340,7 @@
     }
 
     async function toggleDatos(id) {
-        const response = await fetch(`${PREFIX}/api/toggle_datos/${id}`, { method: 'POST' });
+        const response = await apiFetch(`${PREFIX}/api/toggle_datos/${id}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             location.reload();
@@ -352,7 +352,6 @@
         const titulo = document.getElementById('doc-titulo').value.trim();
         const enlace = document.getElementById('doc-enlace').value.trim();
         const comentario = document.getElementById('doc-comentario').value.trim();
-        const autor = document.getElementById('doc-autor').value.trim();
 
         if (!titulo || !enlace) {
             alert('Por favor completa los campos obligatorios');
@@ -360,7 +359,7 @@
         }
 
         try {
-            const response = await fetch(`${PREFIX}/api/documento`, {
+            const response = await apiFetch(`${PREFIX}/api/documento`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -368,8 +367,7 @@
                     tipo: tipo,
                     titulo: titulo,
                     enlace: enlace,
-                    comentario: comentario,
-                    autor: autor
+                    comentario: comentario
                 })
             });
 
@@ -388,7 +386,7 @@
         if (!confirm('¿Eliminar este documento?')) return;
 
         try {
-            const response = await fetch(`${PREFIX}/api/documento/${id}`, { method: 'DELETE' });
+            const response = await apiFetch(`${PREFIX}/api/documento/${id}`, { method: 'DELETE' });
             const data = await response.json();
             if (data.success) {
                 location.reload();
@@ -419,7 +417,7 @@
         }
 
         try {
-            const response = await fetch(`${PREFIX}/api/documento/${docIdASustituir}/sustituir`, {
+            const response = await apiFetch(`${PREFIX}/api/documento/${docIdASustituir}/sustituir`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sustituido_por: parseInt(nuevoDocId) })
