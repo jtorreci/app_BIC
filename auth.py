@@ -169,7 +169,7 @@ def login():
     if current_user.is_authenticated:
         return redirect(request.script_root + siguiente if siguiente else url_for("index"))
 
-    if request.method == "GET":
+    if request.method in ("GET", "HEAD"):
         return render_template("auth/login.html", siguiente=siguiente, email="")
 
     email = (request.form.get("email") or "").strip().lower()
