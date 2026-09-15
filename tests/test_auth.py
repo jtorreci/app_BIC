@@ -46,6 +46,11 @@ def test_login_correcto_actualiza_ultimo_acceso(client):
     assert intentos == 0
 
 
+def test_head_login_no_cuenta_como_intento(client):
+    respuesta = client.head("/login?next=/")
+    assert respuesta.status_code == 200
+
+
 def test_login_fallido_mensaje_generico(client):
     crear_usuario()
     incorrecta = iniciar_sesion(client, password="otra-contraseña-mala")
