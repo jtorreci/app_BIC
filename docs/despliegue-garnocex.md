@@ -140,13 +140,17 @@ sin tocar la base de producción:
 
 ```bash
 docker run -d --name digibic_restore_test -e POSTGRES_PASSWORD=test postgres:16-alpine
-sleep 5
+sleep 15
+docker exec digibic_restore_test psql -q -U postgres -c "CREATE ROLE bic"
 gunzip -c "$(ls -t /srv/backups/digibic/digibic_*.sql.gz | head -1)" \
   | docker exec -i digibic_restore_test psql -q -U postgres > /dev/null
 docker exec digibic_restore_test psql -U postgres -tAc \
   "select count(*) from bienes; select count(*) from usuarios;"   # 256 y 1
 docker rm -f digibic_restore_test
 ```
+
+El volcado asigna las tablas al usuario `bic`; por eso se crea antes en la base desechable.
+Si `psql` responde `the database system is starting up`, aumentar la espera.
 
 ## Fase 3. Publicación con el proxy
 
@@ -159,15 +163,49 @@ runbook de `garnocex-proxy/README.md`. Antes de empezarlo:
       TLS antes del cambio (nginx reenvía el reto ACME a Caddy), con lo que el corte dura segundos
 - [ ] Agenda avisada del momento del cambio (pestaña `desarrollo.agenda_estudiante`)
 
-Comprobaciones específicas de DIGIBIC tras el cambio:
+Comprobaciones específicas de DIGIBIC tras el cambio. garnocex **no puede conectarse a su
+propia IP pública** (`curl` devuelve `000` aunque todo funcione), así que desde el servidor se
+fuerza `127.0.0.1`; desde cualquier otro equipo se omite `--resolve`:
 
 ```bash
-curl -sI https://garnocex.unex.es/digibic/ | rg -i '^(HTTP|location)'   # 302 → /digibic/login
-curl -sI https://garnocex.unex.es/digibic/login | rg -i '^(HTTP|set-cookie)'
-# 200 y cookie digibic_session con Path=/digibic; Secure; HttpOnly
+R="--resolve garnocex.unex.es:443:127.0.0.1"
+curl -s -o /dev/null -w '%{http_code}\n' $R https://garnocex.unex.es/digibic/        # 302
+curl -s -o /dev/null -w '%{http_code}\n' $R https://garnocex.unex.es/digibic/login   # 200
+curl -sI $R https://garnocex.unex.es/digibic/login | grep -i set-cookie
+# digibic_session con Path=/digibic; Secure; HttpOnly
 ```
 
-Después, iniciar sesión en el navegador con el administrador y crear las cuentas del personal.
+Después, iniciar sesión en el navegador con el administrador y crear las cuentas del personal
+(ver [Gestión de usuarios](#gestión-de-usuarios)).
+
+**Navegador que redirige a la agenda.** Antes del cambio, nginx respondía a cualquier ruta
+desconocida (incluida `/digibic`) con un `301` permanente a `/agenda/`, y el navegador lo guarda.
+Si el servidor responde bien pero el navegador sigue yendo a la agenda, abrir
+`https://garnocex.unex.es/digibic/login` directamente, usar una ventana privada o borrar la
+caché del navegador para `garnocex.unex.es`.
+
+## Gestión de usuarios
+
+Solo los administradores ven el enlace **Usuarios** en la barra de navegación
+(`https://garnocex.unex.es/digibic/admin/usuarios`).
+
+| Tarea | Cómo |
+|---|---|
+| Alta | **Nuevo usuario** → correo, nombre, organización (`UEx` o `DGAP`), contraseña inicial y, si procede, **Administrador** → **Guardar** |
+| Editar nombre, organización o rol | Icono del lápiz en la fila del usuario → **Guardar** |
+| Restablecer contraseña | Icono del lápiz → bloque **Restablecer contraseña** → **Restablecer**. Cierra las sesiones abiertas de ese usuario |
+| Dar de baja | Icono de desactivar en la fila. No se borra: se conserva la autoría de sus documentos y se puede reactivar |
+| Cambiar la propia contraseña | Menú con el propio nombre (arriba a la derecha) → **Cambiar contraseña** |
+
+Reglas:
+
+- No hay registro público: todas las cuentas las crea un administrador.
+- El correo es el identificador de acceso y no se puede cambiar después del alta.
+- Un administrador no puede desactivarse ni quitarse el rol a sí mismo, y siempre queda al
+  menos un administrador activo.
+- Tras 5 intentos fallidos la cuenta se bloquea 15 minutos.
+- La contraseña inicial conviene enviarla por un canal distinto al del enlace de acceso y pedir
+  a cada persona que la cambie en su primer acceso (la aplicación no lo obliga).
 
 ## Actualizaciones
 
