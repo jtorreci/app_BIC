@@ -169,11 +169,11 @@ def test_cambiar_password(client):
     token = token_csrf(client, "/cuenta/password")
     nueva = "nueva-contraseña-456"
 
-    corta = client.post("/cuenta/password", data={
+    vacia = client.post("/cuenta/password", data={
         "csrf_token": token, "password_actual": PASSWORD,
-        "password_nueva": "corta", "password_confirmacion": "corta",
+        "password_nueva": "", "password_confirmacion": "",
     })
-    assert corta.status_code == 400
+    assert vacia.status_code == 400
     mala_actual = client.post("/cuenta/password", data={
         "csrf_token": token, "password_actual": "no-es-la-actual",
         "password_nueva": nueva, "password_confirmacion": nueva,

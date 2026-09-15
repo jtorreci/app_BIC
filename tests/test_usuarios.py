@@ -143,5 +143,11 @@ def test_cli_crear_admin(flask_app):
     )
 
     corta = runner.invoke(args=["crear-admin"], input="b@uex.es\nB\nUEx\ncorta\ncorta\n")
-    assert corta.exit_code != 0
-    assert "12 caracteres" in corta.output
+    assert corta.exit_code == 0, corta.output
+
+    vacia = runner.invoke(
+        args=["crear-admin", "--email", "c@uex.es", "--nombre", "C",
+              "--organizacion", "UEx", "--password", ""]
+    )
+    assert vacia.exit_code != 0
+    assert "no puede estar vacía" in vacia.output

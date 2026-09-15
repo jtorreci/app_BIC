@@ -17,7 +17,6 @@ from db import get_db_connection
 ORGANIZACIONES = ("UEx", "DGAP")
 MAX_INTENTOS = 5
 MINUTOS_BLOQUEO = 15
-LONGITUD_MINIMA_PASSWORD = 12
 MENSAJE_LOGIN_FALLIDO = (
     "No se ha podido iniciar sesión. Revisa el correo y la contraseña "
     "o inténtalo de nuevo más tarde."
@@ -65,8 +64,8 @@ def leer_bool_entorno(nombre, por_defecto):
 
 def validar_password(password, confirmacion):
     """Devuelve un mensaje de error o None si la contraseña es aceptable."""
-    if len(password or "") < LONGITUD_MINIMA_PASSWORD:
-        return f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres."
+    if not password:
+        return "La contraseña no puede estar vacía."
     if password != confirmacion:
         return "La confirmación no coincide con la contraseña."
     return None
